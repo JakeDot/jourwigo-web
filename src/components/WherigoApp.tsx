@@ -27,7 +27,8 @@ import {
   ListTodo,
   Mic,
   Square,
-  Camera
+  Camera,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -59,6 +60,7 @@ export default function WherigoApp() {
 
   const [resources, setResources] = useState<{ name: string, file: File }[]>([]);
   const [resourceTab, setResourceTab] = useState<'all' | 'images' | 'audio' | 'videos' | 'other'>('all');
+  const [resourceSearch, setResourceSearch] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
@@ -554,29 +556,44 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 border-b border-zinc-800 pb-4">
-                        {[
-                          { id: 'all', label: 'All' },
-                          { id: 'images', label: 'Images' },
-                          { id: 'audio', label: 'Audio' },
-                          { id: 'videos', label: 'Videos' },
-                          { id: 'other', label: 'Other' }
-                        ].map(tab => (
-                          <button
-                            key={tab.id}
-                            onClick={() => setResourceTab(tab.id as any)}
-                            className={cn(
-                              "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
-                              resourceTab === tab.id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
-                            )}
-                          >
-                            {tab.label}
-                          </button>
-                        ))}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+                        <div className="flex items-center gap-2">
+                          {[
+                            { id: 'all', label: 'All' },
+                            { id: 'images', label: 'Images' },
+                            { id: 'audio', label: 'Audio' },
+                            { id: 'videos', label: 'Videos' },
+                            { id: 'other', label: 'Other' }
+                          ].map(tab => (
+                            <button
+                              key={tab.id}
+                              onClick={() => setResourceTab(tab.id as any)}
+                              className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+                                resourceTab === tab.id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                              )}
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="relative">
+                          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                          <input 
+                            type="text" 
+                            placeholder="Search resources..." 
+                            value={resourceSearch}
+                            onChange={(e) => setResourceSearch(e.target.value)}
+                            className="bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors w-full sm:w-64"
+                          />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {resources.filter(res => {
+                          const matchesSearch = res.name.toLowerCase().includes(resourceSearch.toLowerCase());
+                          if (!matchesSearch) return false;
+
                           if (resourceTab === 'all') return true;
                           const isImage = res.file.type.startsWith('image/');
                           const isAudio = res.file.type.startsWith('audio/') || res.name.match(/\.(mp3|wav|webm|ogg)$/i);
@@ -592,16 +609,23 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
                             <p className="text-xs">Upload or record files to see them here</p>
                           </div>
                         ) : (
-                          resources.map((res, i) => {
+                          resources.filter(res => {
+                            const matchesSearch = res.name.toLowerCase().includes(resourceSearch.toLowerCase());
+                            if (!matchesSearch) return false;
+                            
                             const isImage = res.file.type.startsWith('image/');
                             const isAudio = res.file.type.startsWith('audio/') || res.name.match(/\.(mp3|wav|webm|ogg)$/i);
                             const isVideo = res.file.type.startsWith('video/') || res.name.match(/\.(mp4|mov|webm)$/i);
                             
-                            // Filter logic for rendering
-                            if (resourceTab === 'images' && !isImage) return null;
-                            if (resourceTab === 'audio' && !isAudio) return null;
-                            if (resourceTab === 'videos' && !isVideo) return null;
-                            if (resourceTab === 'other' && (isImage || isAudio || isVideo)) return null;
+                            if (resourceTab === 'images' && !isImage) return false;
+                            if (resourceTab === 'audio' && !isAudio) return false;
+                            if (resourceTab === 'videos' && !isVideo) return false;
+                            if (resourceTab === 'other' && (isImage || isAudio || isVideo)) return false;
+                            return true;
+                          }).map((res, i) => {
+                            const isImage = res.file.type.startsWith('image/');
+                            const isAudio = res.file.type.startsWith('audio/') || res.name.match(/\.(mp3|wav|webm|ogg)$/i);
+                            const isVideo = res.file.type.startsWith('video/') || res.name.match(/\.(mp4|mov|webm)$/i);
 
                             return (
                               <div key={i} className="bg-zinc-800/30 border border-zinc-800 p-4 rounded-2xl flex items-center justify-between group">
