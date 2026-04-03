@@ -35,6 +35,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import defaultLogicLua from '../lib/default-logic.lua?raw';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -66,21 +67,7 @@ export default function WherigoApp() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
-  const [luaCode, setLuaCode] = useState<string>(`-- Custom Lua Logic
-function zone1:OnEnter()
-  com.jourwigo.UI.Toast("You have entered the Ancient Portal!")
-  com.jourwigo.System.Log("User entered zone1")
-  
-  -- Direct JavaFunction call
-  JavaFunction("com.jourwigo.Audio.PlaySound", "portal_hum.mp3")
-end
-
-function zone1:OnExit()
-  com.jourwigo.UI.Toast("The portal's energy fades away.")
-end
-
-com.jourwigo.System.Log("Cartridge initialized successfully!")
-`);
+  const [luaCode, setLuaCode] = useState<string>(defaultLogicLua);
   const [logs, setLogs] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [cartridgeState, setCartridgeState] = useState<any>(null);

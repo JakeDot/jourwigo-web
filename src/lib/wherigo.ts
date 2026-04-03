@@ -106,21 +106,7 @@ export class WherigoEngine {
   async runEvent(objectId: number, eventName: string, ...args: any[]) {
     if (!this.lua) throw new Error('Engine not initialized');
     
-    await this.lua.doString(`
-      local objId = ${objectId}
-      local eventName = "${eventName}"
-      local target = nil
-      
-      for _, obj in ipairs(cart.AllZObjects) do
-        if obj.Id == objId then
-          target = obj
-          break
-        end
-      end
-      
-      if target and target[eventName] then
-        target[eventName](target)
-      end
-    `);
+    // Call the helper function defined in sample._cartridge.lua
+    await this.lua.doString(`Wherigo.RunEvent(${objectId}, "${eventName}")`);
   }
 }

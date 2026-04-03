@@ -116,3 +116,18 @@ function RegisterJavaClass(className)
     end
   end
 end
+
+-- Helper to run events from TS
+function Wherigo.RunEvent(objId, eventName)
+  local target = nil
+  for _, obj in ipairs(cart.AllZObjects) do
+    if obj.Id == objId then
+      target = obj
+      break
+    end
+  end
+  
+  if target and target[eventName] then
+    target[eventName](target)
+  end
+end
