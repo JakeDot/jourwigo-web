@@ -1,24 +1,14 @@
 import { LuaFactory, LuaEngine } from 'wasmoon';
-
-export interface WherigoObject {
-  id: string;
-  name: string;
-  description: string;
-  visible: boolean;
-  active: boolean;
-}
-
-export interface Zone extends WherigoObject {
-  points: { lat: number; lng: number }[];
-  proximityRange: number;
-  distanceRange: number;
-  state: 'inside' | 'proximity' | 'distant';
-}
+import wherigoApiLua from './sample._cartridge.lua?raw';
+import { Cartridge, Zone, Task, Timer, Thing, Player, ZonePoint } from './openwig';
 
 export class WherigoEngine {
   private lua: LuaEngine | null = null;
   private factory: LuaFactory;
   private javaFunctions: Map<string, (...args: any[]) => any> = new Map();
+  
+  public cartridge: Cartridge | null = null;
+  public player: Player = new Player();
 
   constructor() {
     this.factory = new LuaFactory();
@@ -28,14 +18,13 @@ export class WherigoEngine {
     const lua = await this.factory.createEngine();
     this.lua = lua;
     
-    // Register the JavaFunction extension
+    // Register the JavaFunction extension for Jourwigo compatibility
     lua.global.set('JavaFunction', (resource: string, ...args: any[]) => {
       console.log(`Calling JavaFunction: ${resource}`, args);
       const fn = this.javaFunctions.get(resource);
       if (fn) {
         return fn(...args);
       }
-      // Fallback for common Java-style patterns if not explicitly registered
       if (resource === 'java.lang.System.out.println') {
         console.log('[LUA System.out]:', ...args);
         return null;
@@ -44,117 +33,25 @@ export class WherigoEngine {
       return null;
     });
 
+    // Expose OpenWIG Java class stubs to Lua
+    lua.global.set('cgeo', {
+      geocaching: {
+        wherigo: {
+          openwig: {
+            Cartridge: Cartridge,
+            Zone: Zone,
+            Task: Task,
+            Timer: Timer,
+            Thing: Thing,
+            Player: Player,
+            ZonePoint: ZonePoint
+          }
+        }
+      }
+    });
+
     // Basic Wherigo API mock (Lua 5.1 compatible)
-    await lua.doString(`
-      Wherigo = {}
-      Wherigo.INVALID_ID = 0
-      
-      -- Object base
-      function Wherigo.ZObject(obj)
-        obj = obj or {}
-        obj.Id = obj.Id or math.random(1000000)
-        obj.Name = obj.Name or ""
-        obj.Description = obj.Description or ""
-        obj.Visible = obj.Visible ~= false
-        obj.Active = obj.Active ~= false
-        return obj
-      end
-
-      -- Cartridge
-      function Wherigo.ZCartridge(obj)
-        local c = Wherigo.ZObject(obj)
-        c.AllZObjects = {}
-        c.Inventory = {}
-        c.Zones = {}
-        c.Tasks = {}
-        return c
-      end
-
-      -- Zone
-      function Wherigo.ZZone(cartridge)
-        local z = Wherigo.ZObject()
-        z.Cartridge = cartridge
-        z.Points = {}
-        z.ProximityRange = 10
-        z.DistanceRange = 50
-        z.State = "distant"
-        table.insert(cartridge.AllZObjects, z)
-        table.insert(cartridge.Zones, z)
-        return z
-      end
-
-      -- Item
-      function Wherigo.ZItem(cartridge)
-        local i = Wherigo.ZObject()
-        i.Cartridge = cartridge
-        table.insert(cartridge.AllZObjects, i)
-        return i
-      end
-
-      -- Character
-      function Wherigo.ZCharacter(cartridge)
-        local c = Wherigo.ZObject()
-        c.Cartridge = cartridge
-        table.insert(cartridge.AllZObjects, c)
-        return c
-      end
-
-      -- Task
-      function Wherigo.ZTask(cartridge)
-        local t = Wherigo.ZObject()
-        t.Cartridge = cartridge
-        t.Status = "not-started"
-        table.insert(cartridge.AllZObjects, t)
-        table.insert(cartridge.Tasks, t)
-        return t
-      end
-
-      -- Timer
-      function Wherigo.ZTimer(cartridge)
-        local t = Wherigo.ZObject()
-        t.Cartridge = cartridge
-        t.Duration = 0
-        t.Type = "Countdown"
-        table.insert(cartridge.AllZObjects, t)
-        return t
-      end
-
-      -- Input
-      function Wherigo.ZInput(cartridge)
-        local i = Wherigo.ZObject()
-        i.Cartridge = cartridge
-        i.InputType = "Text"
-        i.Text = "Enter value:"
-        table.insert(cartridge.AllZObjects, i)
-        return i
-      end
-
-      -- Global helper for JavaFunction style calls
-      function RegisterJavaClass(className)
-        local parts = {}
-        for part in string.gmatch(className, "[^.]+") do
-          table.insert(parts, part)
-        end
-        
-        local current = _G
-        for i=1, #parts do
-          local p = parts[i]
-          if i == #parts then
-            -- Create a table with a metatable that handles any method call
-            current[p] = setmetatable({}, {
-              __index = function(t, key)
-                return function(...)
-                  return JavaFunction(className .. "." .. key, ...)
-                end
-              end
-            })
-          else
-            current[p] = current[p] or {}
-            current = current[p]
-          end
-        end
-      end
-    `);
+    await lua.doString(wherigoApiLua);
   }
 
   registerJavaFunction(resource: string, fn: (...args: any[]) => any) {
@@ -163,6 +60,7 @@ export class WherigoEngine {
 
   async loadCartridge(luaCode: string) {
     if (!this.lua) throw new Error('Engine not initialized');
+    this.cartridge = new Cartridge();
     await this.lua.doString(luaCode);
   }
 
@@ -170,11 +68,20 @@ export class WherigoEngine {
     if (!this.lua) return null;
     try {
       const cart = this.lua.global.get('cart');
+      const player = this.lua.global.get('Player');
+      
       if (!cart) return null;
       
       return {
         name: cart.Name,
         description: cart.Description,
+        player: player ? {
+          name: player.Name,
+          health: player.Health,
+          score: player.Score,
+          inventoryCount: Array.isArray(player.Inventory) ? player.Inventory.length : 0,
+          location: player.ObjectLocation
+        } : null,
         zones: Array.isArray(cart.Zones) ? cart.Zones.map((z: any) => ({
           id: z.Id,
           name: z.Name,

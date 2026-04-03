@@ -28,7 +28,9 @@ import {
   Mic,
   Square,
   Camera,
-  Search
+  Search,
+  Heart,
+  Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -708,11 +710,25 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
                 </div>
 
                 <div className="p-8 space-y-8">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <PlayerCard icon={Heart} label="Health" count={cartridgeState?.player?.health ?? 100} />
+                    <PlayerCard icon={Trophy} label="Score" count={cartridgeState?.player?.score ?? 0} />
+                    <PlayerCard icon={Package} label="Inventory" count={cartridgeState?.player?.inventoryCount ?? 0} />
                     <PlayerCard icon={MapIcon} label="Locations" count={cartridgeState?.zones?.length || 0} />
-                    <PlayerCard icon={Package} label="Inventory" count={0} />
                     <PlayerCard icon={CheckSquare} label="Tasks" count={cartridgeState?.tasks?.length || 0} />
                     <PlayerCard icon={User} label="Characters" count={0} />
+                  </div>
+
+                  <div className="bg-zinc-800/30 border border-zinc-800 p-4 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <MapIcon className="w-5 h-5 text-indigo-400" />
+                      <div>
+                        <p className="text-sm font-semibold text-zinc-200">Current Location</p>
+                        <p className="text-xs text-zinc-500 font-mono">
+                          {cartridgeState?.player?.location?.latitude?.toFixed(6) ?? '0.000000'}, {cartridgeState?.player?.location?.longitude?.toFixed(6) ?? '0.000000'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-4">
