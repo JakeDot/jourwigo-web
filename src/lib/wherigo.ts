@@ -109,6 +109,26 @@ export class WherigoEngine {
         return t
       end
 
+      -- Timer
+      function Wherigo.ZTimer(cartridge)
+        local t = Wherigo.ZObject()
+        t.Cartridge = cartridge
+        t.Duration = 0
+        t.Type = "Countdown"
+        table.insert(cartridge.AllZObjects, t)
+        return t
+      end
+
+      -- Input
+      function Wherigo.ZInput(cartridge)
+        local i = Wherigo.ZObject()
+        i.Cartridge = cartridge
+        i.InputType = "Text"
+        i.Text = "Enter value:"
+        table.insert(cartridge.AllZObjects, i)
+        return i
+      end
+
       -- Global helper for JavaFunction style calls
       function RegisterJavaClass(className)
         local parts = {}

@@ -20,7 +20,11 @@ import {
   Music,
   Video,
   File as FileIcon,
-  Download
+  Download,
+  Settings as SettingsIcon,
+  Box,
+  Coffee,
+  ListTodo
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -32,23 +36,26 @@ function cn(...inputs: ClassValue[]) {
 
 export default function WherigoApp() {
   const [mode, setMode] = useState<'editor' | 'player'>('editor');
-  const [editorTab, setEditorTab] = useState<'code' | 'resources'>('code');
+  const [editorTab, setEditorTab] = useState<'settings' | 'objects' | 'tasks' | 'java' | 'code' | 'resources'>('settings');
+  
+  const [cartMeta, setCartMeta] = useState({ name: "The Hidden Relic", description: "A mysterious adventure in the digital realm." });
+  
+  const [objects, setObjects] = useState([
+    { id: 'player', varName: 'Player', type: 'ZCharacter', name: 'Player', description: 'The player character.' },
+    { id: '1', varName: 'zone1', type: 'ZZone', name: 'Ancient Portal', description: 'A shimmering portal that leads to unknown places.' }
+  ]);
+  
+  const [tasks, setTasks] = useState([
+    { id: '1', varName: 'task1', name: 'Activate the Portal', description: 'Find the power source to activate the portal.', status: 'not-started' }
+  ]);
+  
+  const [javaClasses, setJavaClasses] = useState([
+    { id: '1', className: 'com.jourwigo.System' },
+    { id: '2', className: 'com.jourwigo.UI' }
+  ]);
+
   const [resources, setResources] = useState<{ name: string, file: File }[]>([]);
-  const [luaCode, setLuaCode] = useState<string>(`
--- JourWigo Web Cartridge
-cart = Wherigo.ZCartridge({
-  Name = "The Hidden Relic",
-  Description = "A mysterious adventure in the digital realm."
-})
-
--- Register some Java classes for easier access
-RegisterJavaClass("com.jourwigo.System")
-RegisterJavaClass("com.jourwigo.UI")
-
-zone1 = Wherigo.ZZone(cart)
-zone1.Name = "Ancient Portal"
-zone1.Description = "A shimmering portal that leads to unknown places."
-
+  const [luaCode, setLuaCode] = useState<string>(`-- Custom Lua Logic
 function zone1:OnEnter()
   com.jourwigo.UI.Toast("You have entered the Ancient Portal!")
   com.jourwigo.System.Log("User entered zone1")
@@ -60,10 +67,6 @@ end
 function zone1:OnExit()
   com.jourwigo.UI.Toast("The portal's energy fades away.")
 end
-
-task1 = Wherigo.ZTask(cart)
-task1.Name = "Activate the Portal"
-task1.Description = "Find the power source to activate the portal."
 
 com.jourwigo.System.Log("Cartridge initialized successfully!")
 `);
@@ -94,11 +97,50 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
     });
   }, []);
 
+  const generateFullLuaCode = () => {
+    let code = `-- GENERATED CARTRIDGE CODE (Do not edit this part manually)\n\n`;
+    
+    code += `cart = Wherigo.ZCartridge({\n  Name = "${cartMeta.name}",\n  Description = "${cartMeta.description}"\n})\n\n`;
+    
+    if (javaClasses.length > 0) {
+      code += `-- Java Classes\n`;
+      javaClasses.forEach(jc => {
+        if (jc.className) code += `RegisterJavaClass("${jc.className}")\n`;
+      });
+      code += `\n`;
+    }
+
+    if (objects.length > 0) {
+      code += `-- Objects\n`;
+      objects.forEach(obj => {
+        if (!obj.varName) return;
+        code += `${obj.varName} = Wherigo.${obj.type}(cart)\n`;
+        code += `${obj.varName}.Name = "${obj.name}"\n`;
+        code += `${obj.varName}.Description = "${obj.description}"\n\n`;
+      });
+    }
+
+    if (tasks.length > 0) {
+      code += `-- Tasks\n`;
+      tasks.forEach(task => {
+        if (!task.varName) return;
+        code += `${task.varName} = Wherigo.ZTask(cart)\n`;
+        code += `${task.varName}.Name = "${task.name}"\n`;
+        code += `${task.varName}.Description = "${task.description}"\n`;
+        code += `${task.varName}.Status = "${task.status}"\n\n`;
+      });
+    }
+
+    code += `-- END GENERATED CODE\n\n`;
+    code += luaCode;
+    return code;
+  };
+
   const handlePlay = async () => {
     if (!engineRef.current) return;
     try {
       setLogs([]);
-      await engineRef.current.loadCartridge(luaCode);
+      await engineRef.current.loadCartridge(generateFullLuaCode());
       updateState();
       setMode('player');
     } catch (err: any) {
@@ -140,7 +182,7 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
     const zip = new JSZip();
     
     // Add the main Lua file
-    zip.file("_cartridge.lua", luaCode);
+    zip.file("_cartridge.lua", generateFullLuaCode());
     
     // Add all resources
     resources.forEach(res => {
@@ -231,31 +273,183 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
             >
               {/* Editor Content */}
               <div className="lg:col-span-2 space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <button 
-                    onClick={() => setEditorTab('code')}
-                    className={cn(
-                      "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                      editorTab === 'code' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
-                    )}
-                  >
-                    <FileCode className="w-4 h-4" />
-                    Lua Code
-                  </button>
-                  <button 
-                    onClick={() => setEditorTab('resources')}
-                    className={cn(
-                      "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                      editorTab === 'resources' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
-                    )}
-                  >
-                    <Package className="w-4 h-4" />
-                    Resources
-                  </button>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  {[
+                    { id: 'settings', icon: SettingsIcon, label: 'Settings' },
+                    { id: 'objects', icon: Box, label: 'Objects' },
+                    { id: 'tasks', icon: ListTodo, label: 'Tasks' },
+                    { id: 'java', icon: Coffee, label: 'Java' },
+                    { id: 'code', icon: FileCode, label: 'Lua Code' },
+                    { id: 'resources', icon: Package, label: 'Resources' }
+                  ].map(tab => (
+                    <button 
+                      key={tab.id}
+                      onClick={() => setEditorTab(tab.id as any)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                        editorTab === tab.id ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
+                      )}
+                    >
+                      <tab.icon className="w-4 h-4" />
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
 
                 <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl min-h-[600px]">
-                  {editorTab === 'code' ? (
+                  {editorTab === 'settings' && (
+                    <div className="p-8 space-y-6">
+                      <div>
+                        <h3 className="text-xl font-bold text-white">Cartridge Settings</h3>
+                        <p className="text-sm text-zinc-500">Basic information about your adventure.</p>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Name</label>
+                          <input 
+                            value={cartMeta.name}
+                            onChange={e => setCartMeta({...cartMeta, name: e.target.value})}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Description</label>
+                          <textarea 
+                            value={cartMeta.description}
+                            onChange={e => setCartMeta({...cartMeta, description: e.target.value})}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors h-32 resize-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {editorTab === 'objects' && (
+                    <div className="p-8 space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-xl font-bold text-white">EventTables (Objects)</h3>
+                          <p className="text-sm text-zinc-500">Define Zones, Items, Characters, Timers, and Inputs.</p>
+                        </div>
+                        <button 
+                          onClick={() => setObjects([...objects, { id: Date.now().toString(), varName: `obj${objects.length+1}`, type: 'ZZone', name: 'New Object', description: '' }])}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" /> Add Object
+                        </button>
+                      </div>
+                      <div className="space-y-4">
+                        {objects.map((obj, index) => (
+                          <div key={obj.id} className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50 space-y-3 relative group">
+                            <button onClick={() => setObjects(objects.filter(o => o.id !== obj.id))} className="absolute top-4 right-4 text-zinc-500 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4"/></button>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pr-8">
+                              <div>
+                                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Variable Name</label>
+                                <input value={obj.varName} onChange={e => { const n = [...objects]; n[index].varName = e.target.value; setObjects(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Type</label>
+                                <select value={obj.type} onChange={e => { const n = [...objects]; n[index].type = e.target.value; setObjects(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white">
+                                  <option value="ZZone">Zone</option>
+                                  <option value="ZItem">Item</option>
+                                  <option value="ZCharacter">Character</option>
+                                  <option value="ZTimer">Timer</option>
+                                  <option value="ZInput">Input</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Name</label>
+                              <input value={obj.name} onChange={e => { const n = [...objects]; n[index].name = e.target.value; setObjects(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Description</label>
+                              <textarea value={obj.description} onChange={e => { const n = [...objects]; n[index].description = e.target.value; setObjects(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white resize-none h-16" />
+                            </div>
+                          </div>
+                        ))}
+                        {objects.length === 0 && <p className="text-zinc-500 text-sm text-center py-8">No objects defined.</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {editorTab === 'tasks' && (
+                    <div className="p-8 space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-xl font-bold text-white">Tasks</h3>
+                          <p className="text-sm text-zinc-500">Define tasks for the player to complete.</p>
+                        </div>
+                        <button 
+                          onClick={() => setTasks([...tasks, { id: Date.now().toString(), varName: `task${tasks.length+1}`, name: 'New Task', description: '', status: 'not-started' }])}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" /> Add Task
+                        </button>
+                      </div>
+                      <div className="space-y-4">
+                        {tasks.map((task, index) => (
+                          <div key={task.id} className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50 space-y-3 relative group">
+                            <button onClick={() => setTasks(tasks.filter(t => t.id !== task.id))} className="absolute top-4 right-4 text-zinc-500 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4"/></button>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pr-8">
+                              <div>
+                                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Variable Name</label>
+                                <input value={task.varName} onChange={e => { const n = [...tasks]; n[index].varName = e.target.value; setTasks(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white" />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Status</label>
+                                <select value={task.status} onChange={e => { const n = [...tasks]; n[index].status = e.target.value; setTasks(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white">
+                                  <option value="not-started">Not Started</option>
+                                  <option value="in-progress">In Progress</option>
+                                  <option value="completed">Completed</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Name</label>
+                              <input value={task.name} onChange={e => { const n = [...tasks]; n[index].name = e.target.value; setTasks(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Description</label>
+                              <textarea value={task.description} onChange={e => { const n = [...tasks]; n[index].description = e.target.value; setTasks(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white resize-none h-16" />
+                            </div>
+                          </div>
+                        ))}
+                        {tasks.length === 0 && <p className="text-zinc-500 text-sm text-center py-8">No tasks defined.</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {editorTab === 'java' && (
+                    <div className="p-8 space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-xl font-bold text-white">Java Functions</h3>
+                          <p className="text-sm text-zinc-500">Register Java classes to call from Lua.</p>
+                        </div>
+                        <button 
+                          onClick={() => setJavaClasses([...javaClasses, { id: Date.now().toString(), className: 'com.example.NewClass' }])}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" /> Add Class
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        {javaClasses.map((jc, index) => (
+                          <div key={jc.id} className="bg-zinc-800/50 p-4 rounded-xl border border-zinc-700/50 flex items-center gap-4">
+                            <div className="flex-1">
+                              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Class Name</label>
+                              <input value={jc.className} onChange={e => { const n = [...javaClasses]; n[index].className = e.target.value; setJavaClasses(n); }} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white font-mono" />
+                            </div>
+                            <button onClick={() => setJavaClasses(javaClasses.filter(c => c.id !== jc.id))} className="text-zinc-500 hover:text-red-400 transition-colors mt-5"><Trash2 className="w-5 h-5"/></button>
+                          </div>
+                        ))}
+                        {javaClasses.length === 0 && <p className="text-zinc-500 text-sm text-center py-8">No Java classes registered.</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {editorTab === 'code' && (
                     <>
                       <div className="bg-zinc-800/50 px-4 py-2 border-b border-zinc-800 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -279,7 +473,9 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
                         spellCheck={false}
                       />
                     </>
-                  ) : (
+                  )}
+                  
+                  {editorTab === 'resources' && (
                     <div className="p-8 space-y-6">
                       <div className="flex items-center justify-between">
                         <div>
