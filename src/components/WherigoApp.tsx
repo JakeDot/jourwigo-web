@@ -289,7 +289,7 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
                         <label className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center gap-2">
                           <Upload className="w-4 h-4" />
                           Upload Files
-                          <input type="file" multiple className="hidden" onChange={handleFileUpload} />
+                          <input type="file" multiple accept="*/*" className="hidden" onChange={handleFileUpload} />
                         </label>
                       </div>
 
