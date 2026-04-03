@@ -24,7 +24,10 @@ import {
   Settings as SettingsIcon,
   Box,
   Coffee,
-  ListTodo
+  ListTodo,
+  Mic,
+  Square,
+  Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -55,6 +58,10 @@ export default function WherigoApp() {
   ]);
 
   const [resources, setResources] = useState<{ name: string, file: File }[]>([]);
+  const [resourceTab, setResourceTab] = useState<'all' | 'images' | 'audio' | 'videos' | 'other'>('all');
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<BlobPart[]>([]);
   const [luaCode, setLuaCode] = useState<string>(`-- Custom Lua Logic
 function zone1:OnEnter()
   com.jourwigo.UI.Toast("You have entered the Ancient Portal!")
@@ -172,6 +179,40 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
 
     setResources(prev => [...prev, ...newResources]);
     setLogs(prev => [...prev, `Added ${newResources.length} resource(s)`]);
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([blob], `recording_${Date.now()}.webm`, { type: 'audio/webm' });
+        setResources(prev => [...prev, { name: file.name, file }]);
+        setToast("Audio recording saved");
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      setToast("Error accessing microphone");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
   };
 
   const removeResource = (index: number) => {
@@ -477,48 +518,114 @@ com.jourwigo.System.Log("Cartridge initialized successfully!")
                   
                   {editorTab === 'resources' && (
                     <div className="p-8 space-y-6">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
                           <h3 className="text-xl font-bold text-white">Resource Manager</h3>
                           <p className="text-sm text-zinc-500">Manage audio, images, and other assets for your cartridge.</p>
                         </div>
-                        <label className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center gap-2">
-                          <Upload className="w-4 h-4" />
-                          Upload Files
-                          <input type="file" multiple accept="*/*" className="hidden" onChange={handleFileUpload} />
-                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isRecording ? (
+                            <button 
+                              onClick={stopRecording}
+                              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 animate-pulse"
+                            >
+                              <Square className="w-4 h-4 fill-current" />
+                              Stop
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={startRecording}
+                              className="bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                            >
+                              <Mic className="w-4 h-4" />
+                              Record
+                            </button>
+                          )}
+                          <label className="bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center gap-2">
+                            <Camera className="w-4 h-4" />
+                            Camera
+                            <input type="file" accept="image/*,video/*" capture="environment" className="hidden" onChange={handleFileUpload} />
+                          </label>
+                          <label className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center gap-2">
+                            <Upload className="w-4 h-4" />
+                            Upload
+                            <input type="file" multiple accept="*/*" className="hidden" onChange={handleFileUpload} />
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 border-b border-zinc-800 pb-4">
+                        {[
+                          { id: 'all', label: 'All' },
+                          { id: 'images', label: 'Images' },
+                          { id: 'audio', label: 'Audio' },
+                          { id: 'videos', label: 'Videos' },
+                          { id: 'other', label: 'Other' }
+                        ].map(tab => (
+                          <button
+                            key={tab.id}
+                            onClick={() => setResourceTab(tab.id as any)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all",
+                              resourceTab === tab.id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                            )}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {resources.length === 0 ? (
+                        {resources.filter(res => {
+                          if (resourceTab === 'all') return true;
+                          const isImage = res.file.type.startsWith('image/');
+                          const isAudio = res.file.type.startsWith('audio/') || res.name.match(/\.(mp3|wav|webm|ogg)$/i);
+                          const isVideo = res.file.type.startsWith('video/') || res.name.match(/\.(mp4|mov|webm)$/i);
+                          if (resourceTab === 'images') return isImage;
+                          if (resourceTab === 'audio') return isAudio;
+                          if (resourceTab === 'videos') return isVideo;
+                          return !isImage && !isAudio && !isVideo;
+                        }).length === 0 ? (
                           <div className="col-span-full py-12 flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-3xl text-zinc-600">
                             <Package className="w-12 h-12 mb-4 opacity-20" />
-                            <p className="font-medium">No resources added yet</p>
-                            <p className="text-xs">Upload images, audio, or video files</p>
+                            <p className="font-medium">No resources found</p>
+                            <p className="text-xs">Upload or record files to see them here</p>
                           </div>
                         ) : (
-                          resources.map((res, i) => (
-                            <div key={i} className="bg-zinc-800/30 border border-zinc-800 p-4 rounded-2xl flex items-center justify-between group">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center">
-                                  {res.file.type.startsWith('image/') ? <ImageIcon className="w-5 h-5 text-indigo-400" /> :
-                                   res.file.type.startsWith('audio/') ? <Music className="w-5 h-5 text-emerald-400" /> :
-                                   res.file.type.startsWith('video/') ? <Video className="w-5 h-5 text-rose-400" /> :
-                                   <FileIcon className="w-5 h-5 text-zinc-400" />}
+                          resources.map((res, i) => {
+                            const isImage = res.file.type.startsWith('image/');
+                            const isAudio = res.file.type.startsWith('audio/') || res.name.match(/\.(mp3|wav|webm|ogg)$/i);
+                            const isVideo = res.file.type.startsWith('video/') || res.name.match(/\.(mp4|mov|webm)$/i);
+                            
+                            // Filter logic for rendering
+                            if (resourceTab === 'images' && !isImage) return null;
+                            if (resourceTab === 'audio' && !isAudio) return null;
+                            if (resourceTab === 'videos' && !isVideo) return null;
+                            if (resourceTab === 'other' && (isImage || isAudio || isVideo)) return null;
+
+                            return (
+                              <div key={i} className="bg-zinc-800/30 border border-zinc-800 p-4 rounded-2xl flex items-center justify-between group">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center">
+                                    {isImage ? <ImageIcon className="w-5 h-5 text-indigo-400" /> :
+                                     isAudio ? <Music className="w-5 h-5 text-emerald-400" /> :
+                                     isVideo ? <Video className="w-5 h-5 text-rose-400" /> :
+                                     <FileIcon className="w-5 h-5 text-zinc-400" />}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-zinc-200 truncate max-w-[150px]">{res.name}</p>
+                                    <p className="text-[10px] text-zinc-500">{(res.file.size / 1024).toFixed(1)} KB</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="text-sm font-semibold text-zinc-200 truncate max-w-[150px]">{res.name}</p>
-                                  <p className="text-[10px] text-zinc-500">{(res.file.size / 1024).toFixed(1)} KB</p>
-                                </div>
+                                <button 
+                                  onClick={() => removeResource(i)}
+                                  className="text-zinc-600 hover:text-red-400 transition-colors p-2"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
-                              <button 
-                                onClick={() => removeResource(i)}
-                                className="text-zinc-600 hover:text-red-400 transition-colors p-2"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     </div>

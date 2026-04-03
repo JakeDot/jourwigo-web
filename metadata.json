@@ -1,5 +1,5 @@
 {
   "name": "JourWigo Web",
   "description": "A Wherigo cartridge builder and player with Lua extension support.",
-  "requestFramePermissions": ["geolocation"]
+  "requestFramePermissions": ["geolocation", "camera", "microphone"]
 }
